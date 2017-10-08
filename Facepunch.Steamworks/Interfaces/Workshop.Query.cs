@@ -35,6 +35,8 @@ namespace Facepunch.Steamworks
 
             public ulong? UserId { get; set; }
 
+            public bool ReturnAdditionalPreviews = false;
+
             /// <summary>
             /// If order is RankedByTrend, this value represents how many days to take
             /// into account.
@@ -63,7 +65,7 @@ namespace Facepunch.Steamworks
             private int _resultSkip = 0;
             private List<Item> _results;
 
-            public  void Run()
+            public void Run()
             {
                 if ( Callback != null )
                     return;
@@ -117,6 +119,8 @@ namespace Facepunch.Steamworks
                 foreach ( var tag in ExcludeTags )
                     workshop.ugc.AddExcludedTag( Handle, tag );
 
+                workshop.ugc.SetReturnAdditionalPreviews(Handle, ReturnAdditionalPreviews);
+
                 Callback = workshop.ugc.SendQueryUGCRequest( Handle, ResultCallback );
             }
 
@@ -153,6 +157,23 @@ namespace Facepunch.Steamworks
                     string url = null;
                     if ( workshop.ugc.GetQueryUGCPreviewURL( data.Handle, (uint)i, out url ) )
                         item.PreviewImageUrl = url;
+
+                    uint numPreviews = workshop.ugc.GetQueryUGCNumAdditionalPreviews(data.Handle, (uint)i);
+                    if ( numPreviews > 0 )
+                    {
+                        item.PreviewItems = new List<ItemPreview>();
+                        for(uint j = 0; j < numPreviews; j++)
+                        {
+                            string URLorVideoID;
+                            string originalFileName;
+                            SteamNative.ItemPreviewType previewType;
+
+                            if(workshop.ugc.GetQueryUGCAdditionalPreview(data.Handle, (uint)i, j, out URLorVideoID, out originalFileName, out previewType))
+                            {
+                                item.PreviewItems.Add(new ItemPreview(j, URLorVideoID, originalFileName, previewType));
+                            }
+                        }
+                    }
 
                     _results.Add( item );
 

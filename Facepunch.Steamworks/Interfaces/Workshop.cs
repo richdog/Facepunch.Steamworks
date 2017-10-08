@@ -98,17 +98,17 @@ namespace Facepunch.Steamworks
         /// </summary>
         public Editor CreateItem( ItemType type )
         {
-            return new Editor() { workshop = this, Type = type };
+            return new Editor( this, type );
         }
 
         /// <summary>
-        /// Returns a class representing this ItemId. We don't query
-        /// item name, description etc. We don't verify that item exists.
+        /// Returns a class representing this ItemId. We query
+        /// item name, description etc. We don't verify that the item exists.
         /// We don't verify that this item belongs to your app.
         /// </summary>
         public Editor EditItem( ulong itemId )
         {
-            return new Editor() { workshop = this, Id = itemId };
+            return new Editor( this, itemId );
         }
 
         /// <summary>

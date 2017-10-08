@@ -18,9 +18,11 @@ namespace Facepunch.Steamworks
             public string Title { get; set; } = null;
             public string Description { get; set; } = null;
             public string Folder { get; set; } = null;
-            public string PreviewImage { get; set; } = null;
+            public string PrimaryPreviewImage { get; set; } = null;
+            public List<ItemPreview> AdditionalPreviewItems { get; set; } = null;
             public List<string> Tags { get; set; } = new List<string>();
             public bool Publishing { get; internal set; }
+            public bool ItemInfoPopulated { get; internal set; } = false;
             public ItemType? Type { get; set; }
             public string Error { get; internal set; } = null;
             public string ChangeNote { get; set; } = "";
@@ -35,8 +37,6 @@ namespace Facepunch.Steamworks
             public VisibilityType ? Visibility { get; set; }
 
             public bool NeedToAgreeToWorkshopLegal { get; internal set; }
-
-
 
             public double Progress
             {
@@ -90,6 +90,53 @@ namespace Facepunch.Steamworks
                 }
             }
 
+            internal Editor(Workshop workshop, ItemType type)
+            {
+                this.workshop = workshop;
+                Type = type;
+
+                ItemInfoPopulated = true;
+            }
+
+            internal Editor(Workshop workshop, ulong id)
+            {
+                this.workshop = workshop;
+                Id = id;
+            }
+
+            public bool PopulateItemInfo()
+            {
+                if (Id == 0)
+                    return false;
+
+                ItemInfoPopulated = false;
+
+                Query query = workshop.CreateQuery();
+                query.FileId = new List<ulong> { Id };
+                query.OnResult += InitializeComplete;
+                query.ReturnAdditionalPreviews = true;
+                query.Run();
+                return true;
+            }
+
+            private void InitializeComplete(Query q)
+            {
+                ItemInfoPopulated = true;
+                Item item = q.Items[0];
+
+                if(item.OwnerId == 0)
+                {
+                    //Item has been deleted from workshop or does not exist
+                }
+                else
+                {
+                    Title = item.Title;
+                    Description = item.Description;
+                    Tags = new List<string>(item.Tags);
+                    AdditionalPreviewItems = item.PreviewItems;
+                }
+            }
+
             public void Publish()
             {
                 Publishing = true;
@@ -100,6 +147,7 @@ namespace Facepunch.Steamworks
                     StartCreatingItem();
                     return;
                 }
+
 
                 PublishChanges();
             }
@@ -154,17 +202,70 @@ namespace Facepunch.Steamworks
                 if ( Visibility.HasValue )
                     workshop.ugc.SetItemVisibility( UpdateHandle, (SteamNative.RemoteStoragePublishedFileVisibility)(uint)Visibility.Value );
 
-                if ( PreviewImage != null )
+                if(PrimaryPreviewImage != null)
                 {
-                    var info = new System.IO.FileInfo( PreviewImage );
+                    var info = new System.IO.FileInfo(PrimaryPreviewImage);
 
-                    if ( !info.Exists )
-                        throw new System.Exception( $"PreviewImage doesn't exist ({PreviewImage})" );
+                    if (!info.Exists)
+                        throw new System.Exception($"PreviewImage doesn't exist ({PrimaryPreviewImage})");
 
-                    if ( info.Length >= 1024 * 1024 )
-                        throw new System.Exception( $"PreviewImage should be under 1MB ({info.Length})" );
+                    if (info.Length >= 1024 * 1024)
+                        throw new System.Exception($"PreviewImage should be under 1MB ({info.Length})");
 
-                    workshop.ugc.SetItemPreview( UpdateHandle, PreviewImage );
+                    workshop.ugc.SetItemPreview(UpdateHandle, PrimaryPreviewImage);
+                }
+                
+                //clear preview images
+                //for(uint i = 0; i < 9; i++)
+                //{
+                //    if (!workshop.ugc.RemoveItemPreview(UpdateHandle, i))
+                //        throw new System.Exception($"Error occurred when removing item preview for {UpdateHandle} at index {i}");
+                //}
+
+                if ( AdditionalPreviewItems != null )
+                {
+                    for( int i = 0; i < AdditionalPreviewItems.Count; i++ )
+                    {
+                        var previewItem = AdditionalPreviewItems[i];
+
+                        switch (previewItem.SubmitAction)
+                        {
+                            case ItemPreview.PreviewSubmitAction.Create:
+                            case ItemPreview.PreviewSubmitAction.Update:
+                                if (previewItem.PreviewType == ItemPreviewType.YouTubeVideo || previewItem.PreviewType == ItemPreviewType.Sketchfab)
+                                {
+                                    if (previewItem.updateFilePathOrVideoURL == null || previewItem.updateFilePathOrVideoURL == "")
+                                        throw new System.Exception($"PreviewItem Video URL cannot be empty");
+
+                                    if (previewItem.SubmitAction == ItemPreview.PreviewSubmitAction.Create)
+                                        workshop.ugc.AddItemPreviewVideo(UpdateHandle, previewItem.updateFilePathOrVideoURL);
+                                    else
+                                        workshop.ugc.UpdateItemPreviewVideo(UpdateHandle, previewItem.PreviewIndex, previewItem.updateFilePathOrVideoURL);
+                                }
+                                else
+                                {
+                                    var info = new System.IO.FileInfo(previewItem.updateFilePathOrVideoURL);
+
+                                    if (!info.Exists)
+                                        throw new System.Exception($"PreviewItem path doesn't exist ({previewItem.updateFilePathOrVideoURL})");
+
+                                    if (info.Length >= 1024 * 1024)
+                                        throw new System.Exception($"PreviewItem path should be under 1MB ({info.Length})");
+
+                                    if (previewItem.SubmitAction == ItemPreview.PreviewSubmitAction.Create)
+                                        workshop.ugc.AddItemPreviewFile(UpdateHandle, previewItem.updateFilePathOrVideoURL, previewItem.PreviewType);
+                                    else
+                                        workshop.ugc.UpdateItemPreviewFile(UpdateHandle, previewItem.PreviewIndex, previewItem.updateFilePathOrVideoURL);
+                                }
+                                break;
+                            case ItemPreview.PreviewSubmitAction.Remove:
+                                workshop.ugc.RemoveItemPreview(UpdateHandle, previewItem.PreviewIndex);
+                                break;
+                            case ItemPreview.PreviewSubmitAction.None:
+                            default:
+                                break;
+                        }
+                    }
                 }
 
                 /*

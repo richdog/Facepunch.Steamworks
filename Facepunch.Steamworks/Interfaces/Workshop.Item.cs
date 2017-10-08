@@ -98,7 +98,6 @@ namespace Facepunch.Steamworks
 
             private SteamNative.ItemState State { get { return ( SteamNative.ItemState) workshop.ugc.GetItemState( Id ); } }
 
-
             private DirectoryInfo _directory;
 
             public DirectoryInfo Directory
@@ -188,10 +187,9 @@ namespace Facepunch.Steamworks
             public int WebsiteViews { get; internal set; }
             public int ReportScore { get; internal set; }
             public string PreviewImageUrl { get; internal set; }
+            public List<ItemPreview> PreviewItems { get; internal set; }
 
             string _ownerName = null;
-
-
 
             public string OwnerName
             {

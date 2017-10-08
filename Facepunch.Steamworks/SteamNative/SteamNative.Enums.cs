@@ -1348,7 +1348,7 @@ namespace SteamNative
 	//
 	// EItemPreviewType
 	//
-	internal enum ItemPreviewType : int
+	public enum ItemPreviewType : int
 	{
 		Image = 0,
 		YouTubeVideo = 1,
